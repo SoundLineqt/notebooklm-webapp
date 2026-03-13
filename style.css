@@ -19,13 +19,13 @@
     --red-glow:    rgba(124, 58, 237, 0.18);
     --red-glow-lg: rgba(124, 58, 237, 0.38);
 
-    /* Blue — borders + text for buttons */
-    --blue:        #1d4ed8;
-    --blue-bright: #3b82f6;
-    --blue-dim:    #1e3560;
-    --blue-text:   #60a5fa;
-    --blue-active: #1e3a8a;
-    --blue-glow:   rgba(29, 78, 216, 0.22);
+    /* Cream/beige — borders + text for buttons */
+    --blue:        #a08060;
+    --blue-bright: #c8a87a;
+    --blue-dim:    #3a2a18;
+    --blue-text:   #e0c89a;
+    --blue-active: #4a3520;
+    --blue-glow:   rgba(200, 168, 122, 0.22);
 
     /* Text */
     --text:        #e2e8ef;
@@ -623,4 +623,3 @@ body {
     0%, 100% { box-shadow: 0 0 14px var(--blue-glow), 0 2px 8px rgba(0,0,0,0.5); }
     50%       { box-shadow: 0 0 28px rgba(59, 130, 246, 0.5), 0 2px 8px rgba(0,0,0,0.5); }
 }
-
