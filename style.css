@@ -12,12 +12,12 @@
     --bg-input:    #050509;
     --bg-hover:    #111122;
 
-    /* Red — borders for cards / windows / menus */
-    --red:         #9b1c1c;
-    --red-bright:  #dc2626;
-    --red-dim:     #5a1010;
-    --red-glow:    rgba(155, 28, 28, 0.18);
-    --red-glow-lg: rgba(155, 28, 28, 0.35);
+    /* Purple — borders for cards / windows / menus */
+    --red:         #7c3aed;
+    --red-bright:  #a78bfa;
+    --red-dim:     #3b1a7a;
+    --red-glow:    rgba(124, 58, 237, 0.18);
+    --red-glow-lg: rgba(124, 58, 237, 0.38);
 
     /* Blue — borders + text for buttons */
     --blue:        #1d4ed8;
@@ -623,3 +623,4 @@ body {
     0%, 100% { box-shadow: 0 0 14px var(--blue-glow), 0 2px 8px rgba(0,0,0,0.5); }
     50%       { box-shadow: 0 0 28px rgba(59, 130, 246, 0.5), 0 2px 8px rgba(0,0,0,0.5); }
 }
+
