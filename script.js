@@ -1,280 +1,172 @@
-/**
- * NotebookLM WebApp
- * API: POST /generate, GET /status/{id}, GET /result/{id}, POST /upload (PDF)
- */
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NotebookLM — AI Content Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Mulish:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Telegram Mini App SDK — safe to include even outside Telegram -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
 
-const STORAGE_API_KEY  = "nlm_adapter_url";
-const POLL_INTERVAL_MS = 8000;
-const POLL_MAX_MS      = 18 * 60 * 1000;
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <span class="logo-glyph">⬡</span>
+                <div class="logo-text-group">
+                    <h1 class="logo-title">NotebookLM</h1>
+                    <p class="logo-sub">AI Content Generator</p>
+                </div>
+            </div>
+            <button class="settings-toggle" id="settingsToggle" title="Настройки">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+        </div>
+        <div class="settings-panel" id="settingsPanel">
+            <label class="settings-label" for="apiUrl">Backend URL (NLM Adapter)</label>
+            <div class="settings-row">
+                <input type="url" id="apiUrl" class="settings-input" placeholder="https://your-vps.com:8100" autocomplete="off" />
+                <button type="button" id="saveApiUrl" class="btn-save">Сохранить</button>
+            </div>
+            <p class="settings-hint">Адрес вашего VPS с запущенным NLM Adapter. Сохраняется в браузере.</p>
+        </div>
+    </header>
 
-const ARTIFACT_LABELS = {
-    audio:      "Подкаст (MP3)",
-    video:      "Видео (MP4)",
-    mind_map:   "Mind Map (PNG)",
-    slide_deck: "Презентация (PDF)",
-    quiz:       "Квиз (JSON)",
-    infographic:"Инфографика (PNG)",
-    report:     "Отчёт (Markdown)",
-    flashcards: "Флеш-карты (Markdown)",
-};
+    <main class="main">
 
-const EXT_MAP = {
-    audio: "mp3", video: "mp4", mind_map: "png",
-    slide_deck: "pdf", quiz: "json", infographic: "png",
-    report: "md", flashcards: "md",
-};
+        <!-- STEP 1: SOURCE -->
+        <div class="step-card" id="cardSource">
+            <div class="step-header">
+                <span class="step-num">01</span>
+                <div class="step-meta">
+                    <span class="step-title">ИСТОЧНИК</span>
+                    <span class="step-desc">Текст, ссылка или PDF-документ</span>
+                </div>
+            </div>
+            <div class="tab-row">
+                <button type="button" class="tab active" data-source="text">
+                    <span class="tab-icon">✎</span> Текст
+                </button>
+                <button type="button" class="tab" data-source="url">
+                    <span class="tab-icon">⌁</span> Ссылка
+                </button>
+                <button type="button" class="tab" data-source="file">
+                    <span class="tab-icon">⊡</span> PDF
+                </button>
+            </div>
 
-let state = { sourceType: "text", language: "ru", format: "report" };
-let elapsedInterval = null;
+            <div id="sourceText" class="source-panel">
+                <textarea id="textInput" rows="5" placeholder="Вставьте текст, тему или вопрос…&#10;Подойдёт всё: статья, идея, конспект, вопрос."></textarea>
+            </div>
+            <div id="sourceUrl" class="source-panel hidden">
+                <input type="url" id="urlInput" placeholder="https://example.com или youtube.com/watch?v=…" />
+            </div>
+            <div id="sourceFile" class="source-panel hidden">
+                <div class="drop-zone" id="dropZone">
+                    <span class="drop-icon">⊡</span>
+                    <p class="drop-text">Перетащите PDF сюда или <label for="fileInput" class="drop-label">выберите файл</label></p>
+                    <span id="fileName" class="file-chosen"></span>
+                    <input type="file" id="fileInput" accept=".pdf" />
+                </div>
+            </div>
+        </div>
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function getApiBase() {
-    const stored = localStorage.getItem(STORAGE_API_KEY);
-    const field  = document.getElementById("apiUrl").value.trim();
-    const url    = stored || field;
-    return url ? url.replace(/\/$/, "") : null;
-}
+        <!-- STEP 2: LANGUAGE -->
+        <div class="step-card" id="cardLang">
+            <div class="step-header">
+                <span class="step-num">02</span>
+                <div class="step-meta">
+                    <span class="step-title">ЯЗЫК ВЫВОДА</span>
+                    <span class="step-desc">Язык генерируемого материала</span>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button type="button" class="choice-btn active" data-lang="ru">🇷🇺 Русский</button>
+                <button type="button" class="choice-btn" data-lang="en">🇬🇧 English</button>
+                <button type="button" class="choice-btn" data-lang="de">🇩🇪 Deutsch</button>
+            </div>
+        </div>
 
-function setApiBase(url) {
-    const u = url.trim().replace(/\/$/, "");
-    localStorage.setItem(STORAGE_API_KEY, u);
-    document.getElementById("apiUrl").value = u;
-}
+        <!-- STEP 3: FORMAT -->
+        <div class="step-card" id="cardFormat">
+            <div class="step-header">
+                <span class="step-num">03</span>
+                <div class="step-meta">
+                    <span class="step-title">ФОРМАТ</span>
+                    <span class="step-desc">Что создать из источника</span>
+                </div>
+            </div>
+            <div class="format-grid">
+                <button type="button" class="format-btn active" data-format="report" title="Аналитический текстовый отчёт">
+                    <span class="fmt-icon">📄</span>
+                    <span class="fmt-name">Отчёт</span>
+                </button>
+                <button type="button" class="format-btn" data-format="audio" title="Аудиодиалог двух AI-ведущих">
+                    <span class="fmt-icon">🎙</span>
+                    <span class="fmt-name">Подкаст</span>
+                </button>
+                <button type="button" class="format-btn" data-format="mind_map" title="Карта ключевых связей и идей">
+                    <span class="fmt-icon">🧠</span>
+                    <span class="fmt-name">Mind Map</span>
+                </button>
+                <button type="button" class="format-btn" data-format="video" title="Видеообзор материала">
+                    <span class="fmt-icon">🎬</span>
+                    <span class="fmt-name">Видео</span>
+                </button>
+                <button type="button" class="format-btn" data-format="slide_deck" title="Слайды в PDF">
+                    <span class="fmt-icon">📊</span>
+                    <span class="fmt-name">Презентация</span>
+                </button>
+                <button type="button" class="format-btn" data-format="infographic" title="Визуальная инфографика">
+                    <span class="fmt-icon">🖼</span>
+                    <span class="fmt-name">Инфографика</span>
+                </button>
+                <button type="button" class="format-btn" data-format="flashcards" title="Карточки для запоминания">
+                    <span class="fmt-icon">📇</span>
+                    <span class="fmt-name">Флеш-карты</span>
+                </button>
+                <button type="button" class="format-btn" data-format="quiz" title="Тест с вопросами по теме">
+                    <span class="fmt-icon">❓</span>
+                    <span class="fmt-name">Квиз</span>
+                </button>
+            </div>
+        </div>
 
-function setStatus(msg, type = "") {
-    const el      = document.getElementById("statusMessage");
-    el.textContent = msg;
-    el.className  = "status-message" + (type ? " " + type : "");
-}
+        <!-- GENERATE BUTTON + STATUS -->
+        <div class="generate-area">
+            <button type="button" id="submitBtn" class="btn-generate">
+                <span class="btn-generate-label" id="btnLabel">⚡ Генерировать</span>
+                <span class="btn-spinner hidden" id="btnSpinner"></span>
+            </button>
+            <div class="progress-bar hidden" id="progressBar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p id="statusMessage" class="status-message"></p>
+        </div>
 
-function setGenerating(on) {
-    const btn     = document.getElementById("submitBtn");
-    const label   = document.getElementById("btnLabel");
-    const spinner = document.getElementById("btnSpinner");
-    const bar     = document.getElementById("progressBar");
+        <!-- RESULT -->
+        <div class="step-card result-card hidden" id="resultSection">
+            <div class="step-header">
+                <span class="step-num done">✓</span>
+                <div class="step-meta">
+                    <span class="step-title">РЕЗУЛЬТАТ</span>
+                    <span class="step-desc" id="resultArtifactLabel">Готово</span>
+                </div>
+            </div>
+            <div id="resultContent" class="result-text"></div>
+            <a id="downloadLink" class="btn-download hidden" download>⬇ Скачать файл</a>
+        </div>
 
-    btn.disabled = on;
-    btn.classList.toggle("running", on);
-    label.textContent = on ? "Генерируется…" : "⚡ Генерировать";
-    spinner.classList.toggle("hidden", !on);
-    bar.classList.toggle("hidden", !on);
-}
+    </main>
 
-function startElapsedTimer() {
-    let seconds = 0;
-    elapsedInterval = setInterval(() => {
-        seconds++;
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        const t = m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
-        setStatus(`Генерируется… ${t}`, "info");
-    }, 1000);
-}
+    <footer class="footer">
+        <span>NotebookLM WebApp · powered by <a href="https://notebooklm.google.com" target="_blank">Google NotebookLM</a></span>
+    </footer>
 
-function stopElapsedTimer() {
-    if (elapsedInterval) { clearInterval(elapsedInterval); elapsedInterval = null; }
-}
-
-function showResult(hasFile, downloadUrl, textContent, artifactType) {
-    const section = document.getElementById("resultSection");
-    const content = document.getElementById("resultContent");
-    const link    = document.getElementById("downloadLink");
-    const label   = document.getElementById("resultArtifactLabel");
-
-    label.textContent = ARTIFACT_LABELS[artifactType] || "Готово";
-    section.classList.remove("hidden");
-
-    if (textContent) {
-        content.textContent = textContent;
-    } else if (hasFile) {
-        content.textContent = "Файл готов. Нажмите кнопку ниже чтобы скачать.";
-    } else {
-        content.textContent = "";
-    }
-
-    if (hasFile && downloadUrl) {
-        link.href = downloadUrl;
-        link.download = `result.${EXT_MAP[artifactType] || "bin"}`;
-        link.classList.remove("hidden");
-    } else {
-        link.classList.add("hidden");
-    }
-
-    section.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-// ─── Settings toggle ──────────────────────────────────────────────────────────
-document.getElementById("settingsToggle").addEventListener("click", () => {
-    const panel = document.getElementById("settingsPanel");
-    panel.classList.toggle("open");
-});
-
-if (localStorage.getItem(STORAGE_API_KEY)) {
-    document.getElementById("apiUrl").value = localStorage.getItem(STORAGE_API_KEY);
-    // Don't open settings if URL already saved
-} else {
-    document.getElementById("settingsPanel").classList.add("open");
-}
-
-document.getElementById("saveApiUrl").addEventListener("click", () => {
-    const url = document.getElementById("apiUrl").value.trim();
-    if (!url) { setStatus("Введите URL бэкенда", "error"); return; }
-    setApiBase(url);
-    setStatus("URL сохранён ✓", "success");
-    document.getElementById("settingsPanel").classList.remove("open");
-});
-
-// ─── Source tabs ──────────────────────────────────────────────────────────────
-document.querySelectorAll(".tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        state.sourceType = btn.dataset.source;
-        document.getElementById("sourceText").classList.toggle("hidden", state.sourceType !== "text");
-        document.getElementById("sourceUrl").classList.toggle("hidden",  state.sourceType !== "url");
-        document.getElementById("sourceFile").classList.toggle("hidden", state.sourceType !== "file");
-    });
-});
-
-// ─── Language ─────────────────────────────────────────────────────────────────
-document.querySelectorAll(".choice-btn[data-lang]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-        document.querySelectorAll(".choice-btn[data-lang]").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        state.language = btn.dataset.lang;
-    });
-});
-
-// ─── Format ───────────────────────────────────────────────────────────────────
-document.querySelectorAll(".format-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-        document.querySelectorAll(".format-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        state.format = btn.dataset.format;
-    });
-});
-
-// ─── File input / drop zone ───────────────────────────────────────────────────
-const dropZone  = document.getElementById("dropZone");
-const fileInput = document.getElementById("fileInput");
-
-fileInput.addEventListener("change", (e) => {
-    const name = e.target.files.length ? e.target.files[0].name : "";
-    document.getElementById("fileName").textContent = name;
-});
-
-["dragenter", "dragover"].forEach((ev) => {
-    dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
-});
-["dragleave", "drop"].forEach((ev) => {
-    dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.remove("drag-over"); });
-});
-dropZone.addEventListener("drop", (e) => {
-    const files = e.dataTransfer.files;
-    if (files.length) {
-        fileInput.files = files;
-        document.getElementById("fileName").textContent = files[0].name;
-    }
-});
-
-// ─── Source value ─────────────────────────────────────────────────────────────
-async function getSourceValue() {
-    if (state.sourceType === "text") {
-        const v = document.getElementById("textInput").value.trim();
-        if (!v) throw new Error("Введите текст или тему");
-        return v;
-    }
-    if (state.sourceType === "url") {
-        const v = document.getElementById("urlInput").value.trim();
-        if (!v) throw new Error("Введите ссылку");
-        return v;
-    }
-    if (state.sourceType === "file") {
-        const input = fileInput;
-        if (!input.files || !input.files[0]) throw new Error("Выберите PDF-файл");
-        const base = getApiBase();
-        if (!base) throw new Error("Укажите URL бэкенда");
-
-        setStatus("Загружаю PDF…", "info");
-        const form = new FormData();
-        form.append("file", input.files[0]);
-        const res = await fetch(`${base}/upload`, { method: "POST", body: form });
-        if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            throw new Error(t || `Ошибка загрузки (${res.status})`);
-        }
-        const data = await res.json();
-        return data.path;
-    }
-    throw new Error("Выберите источник");
-}
-
-// ─── Submit ───────────────────────────────────────────────────────────────────
-document.getElementById("submitBtn").addEventListener("click", async () => {
-    const base = getApiBase();
-    if (!base) {
-        setStatus("Укажите URL бэкенда (кнопка ⚙ вверху)", "error");
-        document.getElementById("settingsPanel").classList.add("open");
-        return;
-    }
-
-    setGenerating(true);
-    document.getElementById("resultSection").classList.add("hidden");
-    setStatus("Подготовка…", "info");
-
-    try {
-        const sourceValue = await getSourceValue();
-        setStatus("Задача отправлена…", "info");
-
-        const res = await fetch(`${base}/generate`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                artifact_type: state.format,
-                source_type:   state.sourceType,
-                source_value:  sourceValue,
-                language:      state.language,
-                instructions:  "",
-            }),
-        });
-
-        if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            throw new Error(t || `Ошибка отправки (${res.status})`);
-        }
-
-        const { job_id } = await res.json();
-        startElapsedTimer();
-
-        // Polling
-        const start = Date.now();
-        while (Date.now() - start < POLL_MAX_MS) {
-            await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-            const statusRes = await fetch(`${base}/status/${job_id}`);
-            if (!statusRes.ok) throw new Error("Ошибка проверки статуса");
-            const statusData = await statusRes.json();
-
-            if (statusData.status === "pending" || statusData.status === "processing") continue;
-
-            if (statusData.status === "error") {
-                throw new Error(statusData.error || "Ошибка генерации");
-            }
-
-            if (statusData.status === "done") {
-                stopElapsedTimer();
-                setGenerating(false);
-                setStatus("Готово ✓", "success");
-                const dlUrl = statusData.has_file ? `${base}/result/${job_id}` : null;
-                showResult(!!statusData.has_file, dlUrl, statusData.text_content || null, statusData.artifact_type);
-                return;
-            }
-        }
-        throw new Error("Таймаут — попробуйте ещё раз");
-
-    } catch (e) {
-        stopElapsedTimer();
-        setGenerating(false);
-        setStatus(e.message || "Неизвестная ошибка", "error");
-    }
-});
+    <script src="script.js"></script>
+</body>
+</html>
